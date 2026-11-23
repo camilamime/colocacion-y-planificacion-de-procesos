@@ -45,7 +45,7 @@ int main(){
 int menuMemoria(){
     int opc;
     do {
-        cout << "Tamaño de la memoria:" << endl;
+        cout << "Memory size:" << endl;
         cout << "1. 1 MB" << endl;
         cout << "2. 4 MB" << endl;
         cout << "3. 8 MB" << endl;
@@ -57,7 +57,7 @@ int menuMemoria(){
             opc = 0;
         }
         if (opc < 1 || opc > 3)
-            cout << "Opción inválida" << endl;
+            cout << "Invalid option" << endl;
     } while (opc < 1 || opc > 3);
 
     if (opc == 1) return 1024;
@@ -67,13 +67,13 @@ int menuMemoria(){
 
 int menu(){
     int opc;
-    cout << "Menu de opciones" << endl;  
-    cout << "Ingrese que tipo de algoritmo desea usar: " << endl;
+    cout << "Opcion Menu" << endl;  
+    cout << "What algorithm do you want to use?" << endl;
     cout << "1. First Fit" << endl;
     cout << "2. Worst Fit" << endl;
     cin >> opc;
     if(opc!=1 && opc !=2){
-        cout << "Opción invalida :p"<<endl;
+        cout << "Invalid option :p"<<endl;
     }  while (opc != 1 && opc != 2);
     return opc;
 }
