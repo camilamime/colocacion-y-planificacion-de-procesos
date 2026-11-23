@@ -1,10 +1,18 @@
-// Proyecto Sistemas Operativos//
+// Proyecto Sistemas Operativos
+// Simulador de colocacion de memoria (First Fit / Worst Fit) y Round Robin
 
 #include <iostream>
-#include <string>
-#include <vector>
+#include <deque>
+#include <algorithm>
+#include <cstdlib>
+#include <ctime>
+#include <thread>
+#include <chrono>
+#include <conio.h>   // _kbhit, _getch (Windows)
 
 using namespace std;
+
+const int MIN_SPLIT = 32;   // tamano minimo de split en KB
 
 struct Bloque {
     int id;
@@ -14,27 +22,17 @@ struct Bloque {
     Bloque* sig;
 };
 
-struct Proceso {
-    int id;
-    Proceso* sig;
+struct Config {
+    int tamMem;      // 1024, 4096, 8192
+    int quantum;     // cuanto del sistema
+    int maxTam;      // tamano maximo de proceso
+    int maxCuanto;   // cuanto maximo por proceso
+    int algoritmo;   // 1 First Fit, 2 Worst Fit
 };
 
-void imprimirMem(Bloque* inicio);
-void imprimirCola(Proceso* frente);
-void condensarMemoria(Bloque* inicio);
-Bloque* BusquedaFirst(Bloque* inicio, int tam);
-Bloque* BusquedaWorst(Bloque* inicio, int tam);
-Bloque* buscarHueco(Bloque* inicio, int tam, int algoritmo);
-Bloque* crearbloq(int id, int tam, int cuanto);
-Bloque* buscarProceso(Bloque* inicio, int id);
-int menu();
-int menuMemoria();
-int colocar(Bloque* hueco, int id, int tam, int cuanto);
-int liberarMemoria(Bloque* inicio, int id);
-void encolar(Proceso*& frente, Proceso*& final, int id);
-int desencolar(Proceso*& frente, Proceso*& final);
-void RoundRobin(Bloque* memoria, Proceso*& frente,
-                Proceso*& final, int quantum);
+struct Pendiente { int id, tam, cuanto; };
+
+// ---------- Memoria ----------
 
 Bloque* crearbloq(int id, int tam, int cuanto) {
     Bloque* b = new Bloque;
@@ -46,85 +44,118 @@ Bloque* crearbloq(int id, int tam, int cuanto) {
     return b;
 }
 
-int main() {
-    int algoritmo = menu();
-    int tamMem = menuMemoria();
-
-    int quantumSistema;
-
-    cout << "Quantum del sistema: ";
-    cin >> quantumSistema;
-
-    while (cin.fail() || quantumSistema <= 0) {
-        cin.clear();
-        cin.ignore(10000, '\n');
-        cout << "Quantum invalido. Introduce otro: ";
-        cin >> quantumSistema;
-    }
-
-    Bloque* memoria = crearbloq(0, tamMem, 0);
-
-    Proceso* frente = nullptr;
-    Proceso* final = nullptr;
-
-    int cantidad;
-    cout << "Cantidad de procesos: ";
-    cin >> cantidad;
-
-    for (int i = 0; i < cantidad; i++) {
-        int id, tam, cuanto;
-
-        cout << "\nProceso " << i + 1 << endl;
-
-        cout << "ID: ";
-        cin >> id;
-
-        cout << "Tamano: ";
-        cin >> tam;
-
-        cout << "Cuanto: ";
-        cin >> cuanto;
-
-        if (id <= 0 || tam <= 0 || cuanto <= 0) {
-            cout << "Datos invalidos" << endl;
-            i--;
-            continue;
-        }
-
-        if (buscarProceso(memoria, id) != nullptr) {
-            cout << "El ID ya existe" << endl;
-            i--;
-            continue;
-        }
-
-        Bloque* hueco = buscarHueco(memoria, tam, algoritmo);
-
-        if (hueco != nullptr) {
-            if (colocar(hueco, id, tam, cuanto)) {
-                encolar(frente, final, id);
-                cout << "Proceso agregado correctamente" << endl;
-            }
-        }
-        else {
-            cout << "No hay suficiente memoria para el proceso" << endl;
-        }
-
-        imprimirMem(memoria);
-        imprimirCola(frente);
-    }
-
-    cout << "\n--- INICIO ROUND ROBIN ---\n";
-
-    RoundRobin(memoria, frente, final, quantumSistema);
-
-    cout << "\n--- SIMULACION TERMINADA ---" << endl;
-
-    imprimirMem(memoria);
-
-    delete memoria;
-
-    return 0;
+void imprimirMem(Bloque* inicio) {
+    for (Bloque* b = inicio; b != nullptr; b = b->sig)
+        cout << "[" << b->id << "," << b->tam << "," << b->cuanto << "]";
+    cout << endl;
 }
+
+Bloque* BusquedaFirst(Bloque* inicio, int tam) {
+    for (Bloque* b = inicio; b != nullptr; b = b->sig)
+        if (b->id == 0 && b->tam >= tam)
+            return b;
+    return nullptr;
+}
+
+Bloque* BusquedaWorst(Bloque* inicio, int tam) {
+    Bloque* peor = nullptr;
+    for (Bloque* b = inicio; b != nullptr; b = b->sig)
+        if (b->id == 0 && b->tam >= tam)
+            if (peor == nullptr || b->tam > peor->tam)
+                peor = b;
+    return peor;
+}
+
+Bloque* buscar(const Config& c, Bloque* mem, int tam) {
+    if (c.algoritmo == 1) return BusquedaFirst(mem, tam);
+    return BusquedaWorst(mem, tam);
+}
+
+// Coloca el proceso en el hueco; respeta el split minimo
+int colocar(Bloque* hueco, int id, int tam, int cuanto) {
+    if (!hueco || hueco->id != 0 || hueco->tam < tam) return 0;
+
+    if (hueco->tam - tam >= MIN_SPLIT) {
+        Bloque* resto = crearbloq(0, hueco->tam - tam, 0);
+        resto->anterior = hueco;
+        resto->sig = hueco->sig;
+        if (hueco->sig) hueco->sig->anterior = resto;
+        hueco->sig = resto;
+        hueco->tam = tam;
+    }
+    // si sobra menos de 32, el proceso se queda con el hueco completo
+    hueco->id = id;
+    hueco->cuanto = cuanto;
+    return 1;
+}
+
+// Libera el bloque y condensa huecos vecinos
+Bloque* liberar(Bloque* b) {
+    b->id = 0;
+    b->cuanto = 0;
+    if (b->sig && b->sig->id == 0) {
+        Bloque* s = b->sig;
+        b->tam += s->tam;
+        b->sig = s->sig;
+        if (s->sig) s->sig->anterior = b;
+        delete s;
+    }
+    if (b->anterior && b->anterior->id == 0) {
+        Bloque* a = b->anterior;
+        a->tam += b->tam;
+        a->sig = b->sig;
+        if (b->sig) b->sig->anterior = a;
+        delete b;
+        b = a;
+    }
+    return b;
+}
+
+// ---------- Procesos / Round Robin ----------
+
+Pendiente generarProceso(const Config& c, int& sigId) {
+    Pendiente p;
+    p.id = sigId++;
+    p.tam = 1 + rand() % c.maxTam;
+    p.cuanto = 1 + rand() % c.maxCuanto;
+    return p;
+}
+
+// Un ciclo de simulacion
+void ciclo(const Config& c, Bloque* mem, deque<Bloque*>& rr,
+           Pendiente& pend, int& sigId, int& atendidos) {
+    // 1) Intentar meter el proceso pendiente (siempre hay uno listo)
+    Bloque* h = buscar(c, mem, pend.tam);
+    if (h && colocar(h, pend.id, pend.tam, pend.cuanto)) {
+        cout << "Entra Proceso [" << h->id << "," << h->tam << "," << h->cuanto << "]\n";
+        rr.push_back(h);
+        pend = generarProceso(c, sigId);
+        imprimirMem(mem);
+    }
+
+    // 2) Round Robin
+    if (rr.empty()) return;
+    Bloque* p = rr.front();
+    rr.pop_front();
+    cout << "Atendiendo proceso [" << p->id << "," << p->tam << "," << p->cuanto << "]\n";
+    p->cuanto -= min(c.quantum, p->cuanto);
+
+    if (p->cuanto == 0) {
+        cout << "Descargando proceso [" << p->id << "," << p->tam << ",0]\n";
+        liberar(p);
+        atendidos++;
+        cout << "Condensando huecos\n";
+    } else {
+        rr.push_back(p);
+    }
+    cout << "Lista RR ";
+    for (Bloque* q : rr)
+        cout << "[" << q->id << "," << q->tam << "," << q->cuanto << "] ";
+    cout << "\n";
+    imprimirMem(mem);
+}
+
+// ---------- Menus ----------
 
 int menuMemoria() {
     int opc;
@@ -154,212 +185,69 @@ int menuMemoria() {
 
 int menu() {
     int opc;
-    cout << "Opcion Menu" << endl;  
-    cout << "What algorithm do you want to use?" << endl;
-    cout << "1. First Fit" << endl;
-    cout << "2. Worst Fit" << endl;
-    cin >> opc;
-    if(opc!=1 && opc !=2){
-        cout << "Invalid option :p"<<endl;
-    }  while (opc != 1 && opc != 2);
+    do {
+        cout << "Algoritmo:\n1. First Fit\n2. Worst Fit\n";
+        cin >> opc;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            opc = 0;
+        }
+        if (opc != 1 && opc != 2) cout << "Invalid option\n";
+    } while (opc != 1 && opc != 2);
     return opc;
 }
 
-void imprimirMem(Bloque* inicio) {
-    for (Bloque* b = inicio; b != nullptr; b = b->sig)
-        cout << "[" << b->id << "," << b->tam << ","
-             << b->cuanto << "]";
-
-    cout << endl;
-}
-
-void imprimirCola(Proceso* frente) {
-    cout << "Lista RR: ";
-
-    for (Proceso* p = frente; p != nullptr; p = p->sig)
-        cout << "[" << p->id << "] ";
-
-    cout << endl;
-}
-
-int colocar(Bloque* hueco, int id, int tam, int cuanto) {
-    if (hueco == nullptr || hueco->id != 0 || hueco->tam < tam)
-        return 0;
-
-    int tamOriginal = hueco->tam;
-    int sobrante = tamOriginal - tam;
-
-    if (sobrante >= 32) {
-        Bloque* resto = crearbloq(0, sobrante, 0);
-
-        resto->anterior = hueco;
-        resto->sig = hueco->sig;
-
-        if (hueco->sig != nullptr)
-            hueco->sig->anterior = resto;
-
-        hueco->sig = resto;
-
-        hueco->tam = tam;
-    }
-    else {
-        hueco->tam = tamOriginal;
-    }
-
-    hueco->id = id;
-    hueco->cuanto = cuanto;
-
-    return 1;
-}
-
-Bloque* BusquedaFirst(Bloque* inicio, int tam) {
-    for (Bloque* b = inicio; b != nullptr; b = b->sig)
-        if (b->id == 0 && b->tam >= tam)
-            return b;
-
-    return nullptr;
-}
-
-Bloque* BusquedaWorst(Bloque* inicio, int tam) {
-    Bloque* peor = nullptr;
-
-    for (Bloque* b = inicio; b != nullptr; b = b->sig) {
-        if (b->id == 0 && b->tam >= tam) {
-            if (peor == nullptr || b->tam > peor->tam)
-                peor = b;
+int leerEntero(const string& msg, int min, int max) {
+    int v;
+    while (true) {
+        cout << msg << " (" << min << "-" << max << "): ";
+        cin >> v;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            v = min - 1;
         }
-    }
-
-    return peor;
-}
-
-Bloque* buscarHueco(Bloque* inicio, int tam, int algoritmo) {
-    if (algoritmo == 1)
-        return BusquedaFirst(inicio, tam);
-
-    if (algoritmo == 2)
-        return BusquedaWorst(inicio, tam);
-
-    return nullptr;
-}
-
-Bloque* buscarProceso(Bloque* inicio, int id) {
-    for (Bloque* b = inicio; b != nullptr; b = b->sig)
-        if (b->id == id)
-            return b;
-
-    return nullptr;
-}
-
-void condensarMemoria(Bloque* inicio) {
-    Bloque* actual = inicio;
-
-    while (actual != nullptr && actual->sig != nullptr) {
-        if (actual->id == 0 && actual->sig->id == 0) {
-            Bloque* eliminar = actual->sig;
-
-            actual->tam += eliminar->tam;
-            actual->sig = eliminar->sig;
-
-            if (eliminar->sig != nullptr)
-                eliminar->sig->anterior = actual;
-
-            delete eliminar;
-        }
-        else {
-            actual = actual->sig;
-        }
+        if (v >= min && v <= max) return v;
+        cout << "Valor invalido\n";
     }
 }
 
-int liberarMemoria(Bloque* inicio, int id) {
-    Bloque* actual = inicio;
+// ---------- Main ----------
 
-    while (actual != nullptr) {
-        if (actual->id == id) {
-            actual->id = 0;
-            actual->cuanto = 0;
+int main() {
+    srand((unsigned)time(nullptr));
+    Config c;
+    c.tamMem    = menuMemoria();
+    c.algoritmo = menu();
+    c.quantum   = leerEntero("Cuanto del sistema", 1, 100);
+    c.maxTam    = leerEntero("Tamano maximo de proceso en KB", MIN_SPLIT, c.tamMem);
+    c.maxCuanto = leerEntero("Cuanto maximo por proceso", 1, 100);
+    int delayMs = leerEntero("Velocidad: ms entre ciclos", 50, 5000);
 
-            condensarMemoria(inicio);
+    Bloque* mem = crearbloq(0, c.tamMem, 0);   // un solo hueco inicial
+    deque<Bloque*> rr;
+    int sigId = 1, atendidos = 0, nCiclos = 0;
+    Pendiente pend = generarProceso(c, sigId);
 
-            return 1;
-        }
+    cout << "Presiona una tecla para detener la simulacion\n";
+    imprimirMem(mem);
 
-        actual = actual->sig;
+    while (!_kbhit()) {
+        nCiclos++;
+        cout << "--- CICLO " << nCiclos << " ---\n";
+        ciclo(c, mem, rr, pend, sigId, atendidos);
+        this_thread::sleep_for(chrono::milliseconds(delayMs));
     }
+    _getch();
 
+    // Estadisticas
+    int ocupado = 0;
+    for (Bloque* b = mem; b; b = b->sig)
+        if (b->id != 0) ocupado += b->tam;
+    cout << "\n=== ESTADISTICAS ===\n";
+    cout << "Ciclos ejecutados: " << nCiclos << endl;
+    cout << "Procesos atendidos: " << atendidos << endl;
+    cout << "Ocupacion de memoria: " << (100.0 * ocupado / c.tamMem) << "%\n";
     return 0;
-}
-
-void encolar(Proceso*& frente, Proceso*& final, int id) {
-    Proceso* nuevo = new Proceso;
-
-    nuevo->id = id;
-    nuevo->sig = nullptr;
-
-    if (frente == nullptr) {
-        frente = nuevo;
-        final = nuevo;
-    }
-    else {
-        final->sig = nuevo;
-        final = nuevo;
-    }
-}
-
-int desencolar(Proceso*& frente, Proceso*& final) {
-    if (frente == nullptr)
-        return -1;
-
-    Proceso* eliminar = frente;
-    int id = eliminar->id;
-
-    frente = frente->sig;
-
-    if (frente == nullptr)
-        final = nullptr;
-
-    delete eliminar;
-
-    return id;
-}
-
-void RoundRobin(Bloque* memoria, Proceso*& frente,
-                Proceso*& final, int quantum) {
-
-    int ciclo = 1;
-
-    while (frente != nullptr) {
-        cout << "\n========== CICLO " << ciclo << " ==========" << endl;
-
-        int id = desencolar(frente, final);
-
-        Bloque* actual = buscarProceso(memoria, id);
-
-        if (actual == nullptr)
-            continue;
-
-        cout << "Atendiendo proceso [" << actual->id << ","
-             << actual->tam << "," << actual->cuanto << "]" << endl;
-
-        if (actual->cuanto <= quantum) {
-            actual->cuanto = 0;
-
-            cout << "Descargando proceso [" << id << "]" << endl;
-
-            liberarMemoria(memoria, id);
-
-            cout << "Condensando huecos" << endl;
-        }
-        else {
-            actual->cuanto -= quantum;
-
-            encolar(frente, final, id);
-        }
-
-        imprimirCola(frente);
-        imprimirMem(memoria);
-
-        ciclo++;
-    }
 }
