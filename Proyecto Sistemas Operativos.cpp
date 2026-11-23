@@ -221,13 +221,14 @@ int main() {
     c.maxTam    = leerEntero("Tamano maximo de proceso en KB", MIN_SPLIT, c.tamMem);
     c.maxCuanto = leerEntero("Cuanto maximo por proceso", 1, 100);
     int delayMs = leerEntero("Velocidad: ms entre ciclos", 50, 5000);
+    cout << "Presiona una tecla para detener la simulacion\n";
 
     Bloque* mem = crearbloq(0, c.tamMem, 0);   // un solo hueco inicial
     deque<Bloque*> rr;
     int sigId = 1, atendidos = 0, nCiclos = 0;
     Pendiente pend = generarProceso(c, sigId);
 
-    cout << "Presiona una tecla para detener la simulacion\n";
+
     imprimirMem(mem);
 
     while (!_kbhit()) {
