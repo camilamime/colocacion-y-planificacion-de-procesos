@@ -159,6 +159,7 @@ void ciclo(const Config& c, Bloque* mem, deque<Bloque*>& rr,
 
 int menuMemoria() {
     int opc;
+
     do {
         cout << "Memory size:" << endl;
         cout << "1. 1 MB" << endl;
@@ -171,12 +172,14 @@ int menuMemoria() {
             cin.ignore(10000, '\n');
             opc = 0;
         }
+
         if (opc < 1 || opc > 3)
             cout << "Invalid option" << endl;
     } while (opc < 1 || opc > 3);
 
     if (opc == 1) return 1024;
     if (opc == 2) return 4096;
+
     return 8192;
 }
 
