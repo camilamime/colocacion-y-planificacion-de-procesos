@@ -1,5 +1,4 @@
 // Proyecto Sistemas Operativos
-// Simulador de colocacion de memoria (First Fit / Worst Fit) y Round Robin
 
 #include <iostream>
 #include <deque>
@@ -111,7 +110,6 @@ Bloque* liberar(Bloque* b) {
     return b;
 }
 
-// ---------- Procesos / Round Robin ----------
 
 Pendiente generarProceso(const Config& c, int& sigId) {
     Pendiente p;
@@ -123,7 +121,7 @@ Pendiente generarProceso(const Config& c, int& sigId) {
 
 // Un ciclo de simulacion
 void ciclo(const Config& c, Bloque* mem, deque<Bloque*>& rr,
-           Pendiente& pend, int& sigId, int& atendidos) {
+            Pendiente& pend, int& sigId, int& atendidos) {
     // 1) Intentar meter el proceso pendiente (siempre hay uno listo)
     Bloque* h = buscar(c, mem, pend.tam);
     if (h && colocar(h, pend.id, pend.tam, pend.cuanto)) {
@@ -155,7 +153,6 @@ void ciclo(const Config& c, Bloque* mem, deque<Bloque*>& rr,
     imprimirMem(mem);
 }
 
-// ---------- Menus ----------
 
 int menuMemoria() {
     int opc;
@@ -213,7 +210,6 @@ int leerEntero(const string& msg, int min, int max) {
     }
 }
 
-// ---------- Main ----------
 
 int main() {
     srand((unsigned)time(nullptr));
@@ -224,13 +220,14 @@ int main() {
     c.maxTam    = leerEntero("Tamano maximo de proceso en KB", MIN_SPLIT, c.tamMem);
     c.maxCuanto = leerEntero("Cuanto maximo por proceso", 1, 100);
     int delayMs = leerEntero("Velocidad: ms entre ciclos", 50, 5000);
+    cout << "Presiona una tecla para detener la simulacion\n";
 
     Bloque* mem = crearbloq(0, c.tamMem, 0);   // un solo hueco inicial
     deque<Bloque*> rr;
     int sigId = 1, atendidos = 0, nCiclos = 0;
     Pendiente pend = generarProceso(c, sigId);
 
-    cout << "Presiona una tecla para detener la simulacion\n";
+
     imprimirMem(mem);
 
     while (!_kbhit()) {
