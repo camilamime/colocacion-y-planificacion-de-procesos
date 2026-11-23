@@ -6,41 +6,57 @@
 
 using namespace std;
 
-void menu(){
-    int opc;
-    cout << "Bienvenido al menu de opciones" << endl;
-    cout << "Ingrese que tipo de operacion desea realizar: " << endl;
-    cout << "1. First Fit" << endl;
-    cout << "2. Worst Fit" << endl;
-    switch (opc){
-        case 1:
-            FirstFit();
-            break;
-        case 2:
-            WorstFit();
-            break;
-        case default:
-            cout << "Opcion no valida" << endl;
-            break;
-            return menu();
-    }
+struct Bloque{
+    int id;
+    int tam;
+    int cuanto;
+    Bloque* anterior;
+    Bloque* sig;
+};
+
+
+void imprimirMem(Bloque* inicio);
+Bloque* BusquedaFirst(Bloque* inicio, int tam);
+Bloque* BusquedaWorst(Bloque* inicio, int tam);
+Bloque* crearbloq(int id, int tam, int cuanto);
+int menu();
+
+Bloque* crearbloq(int id, int tam, int cuanto) {
+    Bloque* b = new Bloque;
+    b->id = id;
+    b->tam = tam;
+    b->cuanto = cuanto;
+    b->anterior = nullptr;
+    b->sig = nullptr;
+    return b;
 }
 
-void FirstFit(){
-    cout << "Bienvenido al algoritmo First Fit" << endl;
-    
-}
-
-void WorstFit(){
-    cout << "Bienvenido al algoritmo Worst Fit" << endl;
-
-}
 
 
 int main(){
+    int algoritmo =menu ();
+    Bloque* memoria =crearbloq(0,4096,0);
+    imprimirMem(memoria); 
+    return 0;
+}
 
-    menu();
 
+int menu(){
+    int opc;
+    cout << "Menu de opciones" << endl;
+    cout << "Ingrese que tipo de algoritmo desea usar: " << endl;
+    cout << "1. First Fit" << endl;
+    cout << "2. Worst Fit" << endl;
+    cin >> opc;
+    if(opc!=1 && opc !=2){
+        cout << "Opción invalida :p"<<endl;
+    } while (opc != 1 && opc != 2);
+    return opc;
+}
 
+void imprimirMem(Bloque* inicio) {
+    for (Bloque* b = inicio; b != nullptr; b = b->sig)
+        cout << "[" << b->id << "," << b->tam << "," << b->cuanto << "]";
+    cout << endl;
 }
 
