@@ -7,7 +7,7 @@
 #include <ctime>
 #include <thread>
 #include <chrono>
-#include <conio.h>   // _kbhit, _getch (Windows)
+#include <conio.h>   // _kbhit, _getch 
 
 using namespace std;
 
@@ -119,10 +119,8 @@ Pendiente generarProceso(const Config& c, int& sigId) {
     return p;
 }
 
-// Un ciclo de simulacion
-void ciclo(const Config& c, Bloque* mem, deque<Bloque*>& rr,
-            Pendiente& pend, int& sigId, int& atendidos) {
-    // 1) Intentar meter el proceso pendiente (siempre hay uno listo)
+// un ciclo de simulacion
+void ciclo(const Config& c, Bloque* mem, deque<Bloque*>& rr,Pendiente& pend, int& sigId, int& atendidos) {
     Bloque* h = buscar(c, mem, pend.tam);
     if (h && colocar(h, pend.id, pend.tam, pend.cuanto)) {
         cout << "Entra Proceso [" << h->id << "," << h->tam << "," << h->cuanto << "]\n";
@@ -131,7 +129,7 @@ void ciclo(const Config& c, Bloque* mem, deque<Bloque*>& rr,
         imprimirMem(mem);
     }
 
-    // 2) Round Robin
+    //  R Robin
     if (rr.empty()) return;
     Bloque* p = rr.front();
     rr.pop_front();
@@ -206,7 +204,7 @@ int leerEntero(const string& msg, int min, int max) {
             v = min - 1;
         }
         if (v >= min && v <= max) return v;
-        cout << "Valor invalido\n";
+        cout << "Invalid value\n";
     }
 }
 
@@ -216,11 +214,12 @@ int main() {
     Config c;
     c.tamMem    = menuMemoria();
     c.algoritmo = menu();
-    c.quantum   = leerEntero("Cuanto del sistema", 1, 100);
-    c.maxTam    = leerEntero("Tamano maximo de proceso en KB", MIN_SPLIT, c.tamMem);
-    c.maxCuanto = leerEntero("Cuanto maximo por proceso", 1, 100);
-    int delayMs = leerEntero("Velocidad: ms entre ciclos", 50, 5000);
-    cout << "Presiona una tecla para detener la simulacion\n";
+    cout << "System Quantum (Bigger than 1): ";
+    cin>>c.quantum;   //= leerEntero("Cuanto del sistema", 1, 100);
+    c.maxTam    = leerEntero("Max process size in KB", MIN_SPLIT, c.tamMem);
+    c.maxCuanto = leerEntero("Max quanto per process", 1, 100);
+    //int delayMs = leerEntero("Velocidad: ms entre ciclos", 50, 5000);
+    cout << "Press any key to stop the simulation\n";
 
     Bloque* mem = crearbloq(0, c.tamMem, 0);   // un solo hueco inicial
     deque<Bloque*> rr;
@@ -230,11 +229,12 @@ int main() {
 
     imprimirMem(mem);
 
+
     while (!_kbhit()) {
         nCiclos++;
-        cout << "--- CICLO " << nCiclos << " ---\n";
+        cout << "--- CYCLE " << nCiclos << " ---\n";
         ciclo(c, mem, rr, pend, sigId, atendidos);
-        this_thread::sleep_for(chrono::milliseconds(delayMs));
+        this_thread::sleep_for(chrono::milliseconds(/*delayMs*/50));
     }
     _getch();
 
@@ -242,9 +242,9 @@ int main() {
     int ocupado = 0;
     for (Bloque* b = mem; b; b = b->sig)
         if (b->id != 0) ocupado += b->tam;
-    cout << "\n=== ESTADISTICAS ===\n";
-    cout << "Ciclos ejecutados: " << nCiclos << endl;
-    cout << "Procesos atendidos: " << atendidos << endl;
-    cout << "Ocupacion de memoria: " << (100.0 * ocupado / c.tamMem) << "%\n";
+    cout << "\n=== STATS ===\n";
+    cout << "Cycles executed: " << nCiclos << endl;
+    cout << "Attended processes: " << atendidos << endl;
+    cout << "Memory usage: " << (100.0 * ocupado / c.tamMem) << "%\n";
     return 0;
 }
