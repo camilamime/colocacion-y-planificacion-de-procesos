@@ -11,7 +11,6 @@
 
 using namespace std;
 
-const int MIN_SPLIT = 32;   // tamano minimo de split en KB
 
 struct Bloque {
     int id;
@@ -74,7 +73,7 @@ Bloque* buscar(const Config& c, Bloque* mem, int tam) {
 int colocar(Bloque* hueco, int id, int tam, int cuanto) {
     if (!hueco || hueco->id != 0 || hueco->tam < tam) return 0;
 
-    if (hueco->tam - tam >= MIN_SPLIT) {
+    if (hueco->tam > tam) {
         Bloque* resto = crearbloq(0, hueco->tam - tam, 0);
         resto->anterior = hueco;
         resto->sig = hueco->sig;
@@ -216,7 +215,7 @@ int main() {
     c.algoritmo = menu();
     cout << "System Quantum (Bigger than 1): ";
     cin>>c.quantum;   //= leerEntero("Cuanto del sistema", 1, 100);
-    c.maxTam    = leerEntero("Max process size in KB", MIN_SPLIT, c.tamMem);
+    c.maxTam= leerEntero("Max process size in KB", 1, c.tamMem);
     c.maxCuanto = leerEntero("Max quanto per process", 1, 100);
     //int delayMs = leerEntero("Velocidad: ms entre ciclos", 50, 5000);
     cout << "Press any key to stop the simulation\n";
