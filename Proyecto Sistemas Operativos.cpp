@@ -12,6 +12,8 @@
 using namespace std;
 
 
+
+
 struct Bloque {
     int id;
     int tam;
@@ -126,13 +128,15 @@ void ciclo(const Config& c, Bloque* mem, deque<Bloque*>& rr,Pendiente& pend, int
         rr.push_back(h);
         pend = generarProceso(c, sigId);
         imprimirMem(mem);
-    }
+        } if(!h){
+            cout << "Waiting process [" << pend.id << "," << pend.tam << "," << pend.cuanto << "]\n";   
+        }
 
     //  R Robin
     if (rr.empty()) return;
     Bloque* p = rr.front();
-    rr.pop_front();
-    cout << "Atendiendo proceso [" << p->id << "," << p->tam << "," << p->cuanto << "]\n";
+    rr.pop_front();    
+    cout << "Attended process [" << p->id << "," << p->tam << "," << p->cuanto << "]\n";
     p->cuanto -= min(c.quantum, p->cuanto);
 
     if (p->cuanto == 0) {
@@ -211,7 +215,7 @@ int leerEntero(const string& msg, int min, int max) {
 int main() {
     srand((unsigned)time(nullptr));
     Config c;
-    c.tamMem    = menuMemoria();
+    c.tamMem    = menuMemoria();// - 320;   // 320 KB para el S.O.
     c.algoritmo = menu();
     cout << "System Quantum (Bigger than 1): ";
     cin>>c.quantum;   //= leerEntero("Cuanto del sistema", 1, 100);
@@ -220,6 +224,7 @@ int main() {
     //int delayMs = leerEntero("Velocidad: ms entre ciclos", 50, 5000);
     cout << "Press any key to stop the simulation\n";
 
+    
     Bloque* mem = crearbloq(0, c.tamMem, 0);   // un solo hueco inicial
     deque<Bloque*> rr;
     int sigId = 1, atendidos = 0, nCiclos = 0;
