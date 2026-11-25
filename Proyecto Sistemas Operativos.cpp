@@ -234,6 +234,7 @@ int main() {
         nCiclos++;
         cout << "--- CYCLE " << nCiclos << " ---\n";
         ciclo(c, mem, rr, pend, sigId, atendidos);
+        cout << "\n"; 
         this_thread::sleep_for(chrono::milliseconds(/*delayMs*/50));
     }
     _getch();
